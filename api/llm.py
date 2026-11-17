@@ -7,7 +7,6 @@ ANTHROPIC_BASE_URL を設定すると vLLM / Strata などの Anthropic 互換�
 import functools
 import json
 import os
-import re
 from pathlib import Path
 
 import anthropic
@@ -79,11 +78,6 @@ def refs_text(refs: list[str]) -> str:
     return "\n\n".join(f'<doc path="{r}">\n{doc(r)}\n</doc>' for r in refs)
 
 
-def strip_fence(text: str) -> str:
-    m = re.search(r"```[a-zA-Z]*\n(.*?)```", text, re.S)
-    return (m.group(1) if m else text).strip() + "\n"
-
-
 TRANSLATE_SYSTEM = """\
 あなたは技術文書の翻訳者です。Astryx デザインシステムの英語の Markdown 文書を、日本のフロントエンド開発者向けの自然な日本語に翻訳します。
 - 出力は翻訳後の Markdown だけ。前置きや説明、全体を囲むコードフェンスは書かない。
@@ -103,6 +97,8 @@ CODE_RULES = """\
 出力のきまり:
 - TSX モジュール 1 つだけを出力する。説明文やコードフェンスは書かない。
 - `export default function Demo()` を必ず定義する。Theme プロバイダーはプレビュー側が包むので書かない。
+  ライトとダークを並べて見せたいなど、一部だけ別のモードにするときは MediaTheme（`<MediaTheme mode="dark">`）を使う。
+  Theme を使う場合は theme を必ず渡す（`import {neutralTheme} from '@astryxdesign/theme-neutral';` → `<Theme theme={neutralTheme} mode="dark">`）。省くと実行時に落ちる。
 - import は `import {X} from '@astryxdesign/core/X';` の形。react 以外の外部ライブラリは使わない。
 - 色・余白・角丸を直書きしない（#hex、rgb()、px のマジックナンバー禁止）。Astryx のコンポーネントとトークンだけで組む。
 - 画面上の文言は日本語。ダミーデータもそれらしい日本語にする。
@@ -122,11 +118,16 @@ def generate(card: dict, prompt: str, code: str):
     if code.strip():
         user += f"現在のコード:\n{code}\n\n"
     user += f"指示: {prompt}"
-    api, kw = _request(system, user, 32000)
+    return _stream(system, user, "\n// モデルが応答を拒否しました\n")
+
+
+def _stream(system: str, content, refusal_note: str):
+    """長い出力は少しずつ返す（画面との中継が無通信で切れないように、書いている途中も見せられる）。"""
+    api, kw = _request(system, content, 32000)
     with api.stream(**kw) as s:
         yield from s.text_stream
         if s.get_final_message().stop_reason == "refusal":
-            yield "\n// モデルが応答を拒否しました\n"
+            yield refusal_note
 
 
 REVIEW_SCHEMA = {
@@ -201,11 +202,12 @@ DRAFT_SYSTEM = """\
 理由には Astryx の出典（ドキュメントのパス）を必ず書く。Astryx に答えがない点は「自定」と明記し、NN/g などの公開資料を根拠にする。"""
 
 
-def draft(card_text: str, card: dict, options: dict[str, str], reviews: dict[str, dict]) -> str:
+def draft(card_text: str, card: dict, options: dict[str, str], reviews: dict[str, dict]):
+    """決定カードの草稿をストリーミングで書く。コードフェンスは画面側で外す。"""
     parts = [f"現在のカード:\n{card_text}"]
     for name, code in options.items():
         parts.append(f'<option name="{name}">\n{code}\n</option>')
         if name in reviews:
             parts.append(f'<review option="{name}">\n{json.dumps(reviews[name], ensure_ascii=False)}\n</review>')
     parts.append(f"関連する Astryx ドキュメント:\n{refs_text(card.get('astryx_refs', []))}")
-    return strip_fence(_final(DRAFT_SYSTEM, "\n\n".join(parts)))
+    return _stream(DRAFT_SYSTEM, "\n\n".join(parts), "\n<!-- モデルが応答を拒否しました -->\n")

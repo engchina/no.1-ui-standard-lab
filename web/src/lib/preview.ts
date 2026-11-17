@@ -31,10 +31,24 @@ export type Mode = 'light' | 'dark';
 export function compile(code: string): string {
   const js = transform(code, {transforms: ['typescript', 'jsx'], jsxRuntime: 'automatic', production: true}).code;
   if (!/export\s+default\s/.test(js)) throw new Error('export default function Demo() がありません');
-  return js
-    .replace(/(['"])@astryxdesign\/core\/[^'"]+\1/g, '"@astryxdesign/core"') // esm.sh はルート 1 本にまとめる
-    .replace(/(['"])@astryxdesign\/theme-neutral\/[^'"]+\1/g, '"@astryxdesign/theme-neutral"')
-    .replace(/export\s+default\s+/, 'const __Demo = ');
+  const wrappers: string[] = [];
+  const out = js
+      .replace(/(['"])@astryxdesign\/core\/[^'"]+\1/g, '"@astryxdesign/core"') // esm.sh はルート 1 本にまとめる
+      .replace(/(['"])@astryxdesign\/theme-neutral\/[^'"]+\1/g, '"@astryxdesign/theme-neutral"')
+      // 方案の中の <Theme> は theme を省くと Astryx が落ちる（theme.name を読む）。省いたときはプレビューと同じテーマを補う
+      .replace(/import\s*\{([^}]*)\}\s*from\s*"@astryxdesign\/core";/g, (_, names: string) => {
+        const specs = names.split(',').map((s) => {
+          const m = s.trim().match(/^Theme(?:\s+as\s+(\w+))?$/);
+          if (!m) return s;
+          const raw = `__RawTheme${wrappers.length}`;
+          wrappers.push(`const ${m[1] ?? 'Theme'} = (p) => __h(${raw}, {theme: __theme, ...p});`);
+          return ` Theme as ${raw}`;
+        });
+        return `import {${specs.join(',')}} from "@astryxdesign/core";`;
+      })
+      .replace(/export\s+default\s+/, 'const __Demo = ');
+  // import は巻き上げられるので、補う定義は先頭に置けば方案のどこからでも使える
+  return wrappers.join('\n') + '\n' + out;
 }
 
 export function buildHtml(code: string, mode: Mode): string {
