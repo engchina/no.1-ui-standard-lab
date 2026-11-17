@@ -122,20 +122,41 @@ export default function Workbench() {
 
 function DocsPanel({detail}: {detail: CardDetail}) {
   const [ref, setRef] = useState(detail.astryx_refs[0] ?? '');
-  const [loaded, setLoaded] = useState({ref: '', text: ''});
+  const [loaded, setLoaded] = useState({ref: '', text: '', translating: false, error: ''});
   useEffect(() => {
     if (!ref) return;
-    api<string>(`/docs/${ref}`).then(
-      (text) => setLoaded({ref, text}),
-      (e) => setLoaded({ref, text: `読み込めません: ${e.message}`}),
-    );
+    let timer: ReturnType<typeof setTimeout>;
+    let alive = true;
+    // 日本語訳を取りに行く。初回は API が Claude で訳すので 202 の間は 3 秒ごとに待つ。訳せなければ英語の原文を出す。
+    const load = () =>
+      api<string | {status: string}>(`/docs/${ref}?lang=ja`).then(
+        (r) => {
+          if (!alive) return;
+          if (typeof r === 'string') setLoaded({ref, text: r, translating: false, error: ''});
+          else {
+            setLoaded((l) => ({...l, ref, translating: true}));
+            timer = setTimeout(load, 3000);
+          }
+        },
+        (e) =>
+          api<string>(`/docs/${ref}`).then(
+            (text) => alive && setLoaded({ref, text, translating: false, error: e.message}),
+            (e2) => alive && setLoaded({ref, text: `読み込めません: ${e2.message}`, translating: false, error: ''}),
+          ),
+      );
+    load();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
   }, [ref]);
-  const doc = loaded.ref === ref ? loaded.text : '';
+  const current = loaded.ref === ref ? loaded : null;
+  const doc = current?.text ?? '';
 
   return (
     <VStack gap={4}>
       <VStack gap={1}>
-        <Text type="label">suite で起きたこと</Text>
+        <Text type="label">背景</Text>
         <Text>{detail.origin}</Text>
       </VStack>
       {detail.decision && (
@@ -150,7 +171,16 @@ function DocsPanel({detail}: {detail: CardDetail}) {
         onChange={(v) => v && setRef(v)}
         options={detail.astryx_refs.map((r) => ({value: r, label: r}))}
       />
-      {doc ? <Markdown density="compact">{doc.replace(/^---[\s\S]*?\n---\n/, '')}</Markdown> : <Skeleton height={240} />}
+      {current?.translating && <Text type="supporting">日本語に翻訳しています（初回のみ、長い文書は数分かかります）…</Text>}
+      {current?.error && (
+        <Banner
+          status="warning"
+          title="日本語訳を表示できないため原文を表示しています"
+          description={`「設定」で API キーを入れると、初回表示時に翻訳して保存します。${current.error}`}
+          collapsible={false}
+        />
+      )}
+      {doc ? <Markdown density="compact">{doc}</Markdown> : <Skeleton height={240} />}
     </VStack>
   );
 }

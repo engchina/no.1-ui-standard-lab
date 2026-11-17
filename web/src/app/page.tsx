@@ -58,7 +58,7 @@ export default function QuestionList() {
           <VStack gap={2}>
             <Heading level={1}>問題一覧</Heading>
             <Text type="supporting">
-              suite で起きた問題を 1 つずつ Astryx で考え直し、決定カードにする。{cards && `決定済み ${done} / ${cards.length}`}
+              実際に起きた UI の問題を 1 つずつ Astryx で考え直し、決定カードにする。{cards && `決定済み ${done} / ${cards.length}`}
             </Text>
             <HStack>
               <SegmentedControl label="絞り込み" value={filter} onChange={(v) => setFilter(v as Filter)}>

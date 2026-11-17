@@ -17,6 +17,7 @@ export function Providers({children}: {children: React.ReactNode}) {
           sideNav={
             <SideNav header={<SideNavHeading heading="UI/UX 訓練場" subheading="Astryx で標準を作る" headingHref="/" />}>
               <SideNavItem label="問題一覧" href="/" isSelected={path === '/'} />
+              <SideNavItem label="設定" href="/settings" isSelected={path === '/settings'} />
             </SideNav>
           }>
           {children}

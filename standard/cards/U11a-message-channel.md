@@ -18,6 +18,6 @@ checks:
 status: todo
 ---
 
-## 背景（suite で起きたこと）
+## 背景
 
 同じ種類のメッセージが Toast だったり Banner だったりする

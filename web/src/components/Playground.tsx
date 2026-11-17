@@ -99,7 +99,7 @@ export function Playground(props: {
       }
       setCode(stripFence(acc));
     } catch (e) {
-      setMessage({status: 'error', text: `生成できません（API キーとネットワークを確認）: ${(e as Error).message}`});
+      setMessage({status: 'error', text: `生成できません（「設定」の API キーとネットワークを確認）: ${(e as Error).message}`});
     } finally {
       setGenerating(false);
     }

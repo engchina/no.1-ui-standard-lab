@@ -11,7 +11,7 @@ from pathlib import Path
 import frontmatter
 import yaml
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 import llm
@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CARDS = ROOT / "standard" / "cards"
 OPTIONS = ROOT / "standard" / "options"
 DOCS = ROOT / "standard" / "astryx-docs"
+DOCS_JA = ROOT / "standard" / "astryx-docs-ja"  # 日本語訳（初回表示時に Claude で訳して保存）
 CACHE = ROOT / ".cache" / "reviews"
 NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
 JOBS: dict[str, str] = {}  # key -> running | error message。ponytail: プロセス内のみ、複数ワーカーにするなら Redis へ
@@ -88,12 +89,46 @@ def delete_option(qid: str, name: str):
     return {"ok": True}
 
 
+TRANSLATING: dict[str, str] = {}  # ref -> running | エラー
+SHA_MARK = "\n<!-- source-sha256: "
+
+
+def _translate(ref: str, body: str, sha: str):
+    try:
+        out = DOCS_JA / ref
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(llm.translate(body).rstrip() + SHA_MARK + sha + " -->\n", encoding="utf-8")
+        TRANSLATING.pop(ref, None)
+    except Exception as e:
+        TRANSLATING[ref] = f"{type(e).__name__}: {e}"
+
+
 @app.get("/api/docs/{ref:path}", response_class=PlainTextResponse)
-def astryx_doc(ref: str):
+def astryx_doc(ref: str, lang: str = ""):
     p = (DOCS / ref).resolve()
     if not (p.is_relative_to(DOCS) and p.suffix == ".md" and p.is_file()):
         raise HTTPException(404, "ドキュメントが見つかりません")
-    return p.read_text(encoding="utf-8")
+    body = frontmatter.loads(p.read_text(encoding="utf-8")).content
+    if lang != "ja":
+        return body
+    # 日本語訳は standard/astryx-docs-ja/ に保存して 1 回だけ訳す。原文が変わったら（Astryx 更新時）訳し直す。
+    ref = p.relative_to(DOCS).as_posix()
+    sha = hashlib.sha256(body.encode()).hexdigest()[:16]
+    ja = DOCS_JA / ref
+    if ja.is_file():
+        text, _, mark = ja.read_text(encoding="utf-8").rpartition(SHA_MARK)
+        if mark.startswith(sha):
+            return text
+    if not (llm.LOCAL or llm.api_key()[0]):
+        raise HTTPException(502, "API キーが未設定です")
+    state = TRANSLATING.get(ref)
+    if state and state != "running":
+        TRANSLATING.pop(ref)  # 次の要求で再試行できるように
+        raise HTTPException(502, state)
+    if not state:
+        TRANSLATING[ref] = "running"
+        threading.Thread(target=_translate, args=(ref, body, sha), daemon=True).start()
+    return JSONResponse({"status": "translating"}, status_code=202)
 
 
 class GenerateIn(BaseModel):
@@ -181,6 +216,33 @@ def draft(qid: str, body: DraftIn):
         return {"text": llm.draft(raw, load_card(qid), load_options(qid), results)}
     except Exception as e:
         raise HTTPException(502, f"草稿の生成に失敗しました: {type(e).__name__}: {e}")
+
+
+def settings_view(error: str = "") -> dict:
+    key, source = llm.api_key()
+    # キーそのものは返さない（末尾 4 文字だけ）
+    return {"source": source, "hint": f"…{key[-4:]}" if key else "", "model": llm.MODEL, "local": llm.LOCAL, "error": error}
+
+
+@app.get("/api/settings")
+def get_settings():
+    return settings_view()
+
+
+class SettingsIn(BaseModel):
+    api_key: str  # 空文字で画面から保存したキーを消す（環境変数に戻る）
+
+
+@app.put("/api/settings")
+def save_settings(body: SettingsIn):
+    key = body.api_key.strip()
+    if key and not re.fullmatch(r"[\x21-\x7e]{20,300}", key):
+        raise HTTPException(400, "API キーの形式が正しくありません")
+    if key:
+        llm.KEY_FILE.write_text(key, encoding="utf-8")
+    else:
+        llm.KEY_FILE.unlink(missing_ok=True)
+    return settings_view(llm.check_key() if llm.api_key()[0] else "")
 
 
 class CardIn(BaseModel):

@@ -4,6 +4,7 @@ ANTHROPIC_BASE_URL を設定すると vLLM / Strata などの Anthropic 互換�
 その場合は Claude 専用の機能（effort、サーバー側フォールバック、キャッシュ）を送らない。
 """
 
+import functools
 import json
 import os
 import re
@@ -13,10 +14,35 @@ import anthropic
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "standard" / "astryx-docs"
+KEY_FILE = ROOT / ".anthropic-key"  # 画面の「設定」で保存したキー（.gitignore 済み）。環境変数より優先
 MODEL = os.environ.get("LAB_MODEL", "claude-opus-5-5")
 LOCAL = bool(os.environ.get("ANTHROPIC_BASE_URL"))
 
-client = anthropic.Anthropic()
+
+def api_key() -> tuple[str, str]:
+    """(キー, 出どころ "ui" | "env" | "")"""
+    if KEY_FILE.is_file() and (k := KEY_FILE.read_text(encoding="utf-8").strip()):
+        return k, "ui"
+    k = os.environ.get("ANTHROPIC_API_KEY", "")
+    return k, "env" if k else ""
+
+
+@functools.cache
+def _client(key: str) -> anthropic.Anthropic:
+    return anthropic.Anthropic(api_key=key or None)
+
+
+def client() -> anthropic.Anthropic:
+    return _client(api_key()[0])
+
+
+def check_key() -> str:
+    """キーで API に届くか確かめる（モデル一覧は課金されない）。届けば空文字、だめなら理由。"""
+    try:
+        client().models.list(limit=1)
+        return ""
+    except Exception as e:
+        return f"{type(e).__name__}: {e}"
 
 
 def _request(system: str, content, max_tokens: int, schema: dict | None = None):
@@ -27,10 +53,10 @@ def _request(system: str, content, max_tokens: int, schema: dict | None = None):
     if oc:
         kw["output_config"] = oc
     if LOCAL:
-        return client.messages, kw
+        return client().messages, kw
     # Opus 5.5 は拒否時にサーバー側でフォールバックさせる。system の大きな資料は自動キャッシュ。
     kw |= {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default", "cache_control": {"type": "ephemeral"}}
-    return client.beta.messages, kw
+    return client().beta.messages, kw
 
 
 def _final(system, content, max_tokens=32000, schema=None) -> str:
@@ -58,6 +84,19 @@ def strip_fence(text: str) -> str:
     return (m.group(1) if m else text).strip() + "\n"
 
 
+TRANSLATE_SYSTEM = """\
+あなたは技術文書の翻訳者です。Astryx デザインシステムの英語の Markdown 文書を、日本のフロントエンド開発者向けの自然な日本語に翻訳します。
+- 出力は翻訳後の Markdown だけ。前置きや説明、全体を囲むコードフェンスは書かない。
+- 見出し・表・リストなど Markdown の構造はそのまま保つ。
+- コードブロック、インラインコード、コンポーネント名・prop 名・型・ファイルパス・URL は翻訳しない。
+- 省略や要約はせず、全文を訳す。"""
+
+
+def translate(markdown: str) -> str:
+    """Astryx の文書を日本語に訳す（結果は呼び出し側でファイルに保存して 1 回だけ）。"""
+    return _final(TRANSLATE_SYSTEM, markdown, max_tokens=64000)
+
+
 CODE_RULES = """\
 あなたは Meta の Astryx（React 19 + StyleX）で画面を作るフロントエンド開発者です。
 
@@ -76,7 +115,7 @@ CODE_RULES = """\
 def generate(card: dict, prompt: str, code: str):
     """演習台: 指示から方案コードをストリーミング生成する。"""
     system = CODE_RULES + doc("components.index.md") + "\n\n参考ドキュメント:\n" + refs_text(card.get("astryx_refs", []))
-    user = f"問題: {card['question']}\nsuite で起きたこと: {card.get('origin', '')}\n\n"
+    user = f"問題: {card['question']}\n背景: {card.get('origin', '')}\n\n"
     if code.strip():
         user += f"現在のコード:\n{code}\n\n"
     user += f"指示: {prompt}"
@@ -136,7 +175,7 @@ def review(card: dict, shots: list[tuple[int, str]], checks: list, dom: str, dec
     cards = "\n\n".join(f"<card id=\"{c['id']}\">決定: {c.get('decision', '')}\n理由: {c.get('rationale', '')}</card>" for c in decided) or "（まだない）"
     content.append({
         "type": "text",
-        "text": f"問題: {card['question']}\nsuite で起きたこと: {card.get('origin', '')}\n\n"
+        "text": f"問題: {card['question']}\n背景: {card.get('origin', '')}\n\n"
         f"機械チェックの結果:\n{json.dumps(checks, ensure_ascii=False, indent=1)}\n\n"
         f"DOM 要約（幅 1280px）:\n{dom}\n\n既存の決定カード:\n{cards}\n\n"
         f"関連する Astryx ドキュメント:\n{refs_text(card.get('astryx_refs', []))}",
@@ -156,8 +195,7 @@ DRAFT_SYSTEM = """\
 - checks: 検査方法（lint / Playwright / 人の目）のリスト
 - status: researching のまま
 本文の章立て: ## 問題 / ## 選択肢 / ## 決定 / ## 理由 / ## 良い例・悪い例 / ## 検査方法
-理由には Astryx の出典（ドキュメントのパス）を必ず書く。Astryx に答えがない点は「自定」と明記し、NN/g などの公開資料を根拠にする。
-suite と同じやり方になる場合も、Astryx から導いた理由を書く。"""
+理由には Astryx の出典（ドキュメントのパス）を必ず書く。Astryx に答えがない点は「自定」と明記し、NN/g などの公開資料を根拠にする。"""
 
 
 def draft(card_text: str, card: dict, options: dict[str, str], reviews: dict[str, dict]) -> str:

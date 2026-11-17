@@ -10,6 +10,7 @@ Meta の [Astryx](https://github.com/meta/astryx) を土台に、次の新規プ
 | `standard/cards/` | 問題 = 決定カード。1 問 1 ファイル（YAML フロントマター + Markdown）。`status`: todo / researching / decided |
 | `standard/options/<id>/` | 方案のコード（`export default function Demo()` を持つ TSX） |
 | `standard/astryx-docs/` | Astryx の設計ドキュメントとコンポーネント文書の固定コピー（`scripts/vendor-astryx.sh` で更新） |
+| `standard/astryx-docs-ja/` | 上の文書の日本語訳。左パネルで初めて開いたときに Claude で訳して保存（原文が変わると訳し直す）。コミットして共有する |
 | `web/` | 画面（Next.js + React 19 + Astryx）。`/api` は FastAPI へ転送 |
 | `api/` | FastAPI。カードの読み書き・Git コミット、Claude での生成 / 講評 / 草稿、Playwright + axe-core の機械チェック |
 
@@ -25,7 +26,7 @@ uv --project api sync
 uv run --project api playwright install chromium
 ```
 
-Claude を使う機能（生成・AI 講評・草稿）には認証情報が要ります。
+Claude を使う機能（生成・AI 講評・草稿）には API キーが要ります。画面左の「設定」で入力するか（リポジトリ直下の `.anthropic-key` に保存、Git 対象外、環境変数より優先）、環境変数で渡します。
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -53,7 +54,7 @@ http://localhost:3710 を開きます。API キーがなくても、問題一覧
 
 ## 使い方
 
-1. 問題一覧から問題を開く。左に「suite で起きたこと」と Astryx の教材。
+1. 問題一覧から問題を開く。左に背景と Astryx の教材（日本語訳）。
 2. 演習台で方案を 2〜3 案作る（コードを書くか、AI に指示して生成）。幅 375 / 768 / 1280、ライト / ダークで確かめて保存。
 3. 方案比較で「すべてレビュー」。機械チェック 10 項目と AI 講評が並ぶ。同じ方案は 1 回だけ評価され、結果は `.cache/reviews/` に残る。
 4. 決定カードで「AI で草稿を作る」→ 自分で直して `status: decided` → 「保存して Git にコミット」。
