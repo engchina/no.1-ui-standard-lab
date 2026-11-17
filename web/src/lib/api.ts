@@ -42,7 +42,8 @@ export interface Review {
 
 export const STATUS_LABEL: Record<Status, string> = {todo: '未着手', researching: '研究中', decided: '決定済み'};
 export const STATUS_VARIANT = {todo: 'neutral', researching: 'warning', decided: 'success'} as const;
-export const MVP_UNITS = ['U5', 'U11', 'U12', 'U15'];
+/** 最初に取り組む単元（設計書: スクロール・メッセージ・読み込み・詳細の出し方） */
+export const PRIORITY_UNITS = ['U5', 'U11', 'U12', 'U15'];
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {

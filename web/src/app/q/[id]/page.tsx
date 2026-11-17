@@ -135,10 +135,11 @@ export default function Workbench() {
         // 教材は長文なので幅をドラッグで変えられ、幅は保存される。ハンドルのダブルクリック / Enter で畳める
         wide && (
           <>
-            <LayoutPanel resizable={docsPanel} label="背景と Astryx の教材">
+            {/* padding を明示して「共有の余白」（負のマージン）を外す。外さないとパネルのスクロールバーが仕切り線の向こう側に出る */}
+            <LayoutPanel resizable={docsPanel} padding={4} label="背景と Astryx の教材">
               <DocsPanel detail={detail} />
             </LayoutPanel>
-            <ResizeHandle resizable={docsPanel} hasDivider label="教材パネルの幅を変える" />
+            <ResizeHandle resizable={docsPanel} hasDivider pillPlacement="end" label="教材パネルの幅を変える" />
           </>
         )
       }
