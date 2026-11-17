@@ -1,7 +1,10 @@
 'use client';
 
 import {useEffect, useState} from 'react';
+import {AlertDialog} from '@astryxdesign/core/AlertDialog';
 import {Button} from '@astryxdesign/core/Button';
+import {Grid} from '@astryxdesign/core/Grid';
+import {InputGroup} from '@astryxdesign/core/InputGroup';
 import {Banner} from '@astryxdesign/core/Banner';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
 import {HStack} from '@astryxdesign/core/HStack';
@@ -39,6 +42,7 @@ export function Playground(props: {
   const [current, setCurrent] = useState(names[0] ?? '');
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<{status: 'success' | 'error'; text: string} | null>(null);
 
   const code = drafts[current] ?? '';
@@ -66,7 +70,7 @@ export function Playground(props: {
   };
 
   const remove = async () => {
-    if (!confirm(`${current} を削除しますか？`)) return;
+    setConfirming(false);
     await api(`/questions/${detail.id}/options/${current}`, {method: 'DELETE'});
     const rest = {...drafts};
     delete rest[current];
@@ -125,31 +129,37 @@ export function Playground(props: {
         </TabList>
         <HStack gap={2}>
           <Button label="方案を追加" size="sm" onClick={addOption} />
-          <Button label="削除" size="sm" variant="ghost" onClick={remove} />
+          <Button label="削除" size="sm" variant="ghost" onClick={() => setConfirming(true)} />
           <Button label="保存" size="sm" variant="primary" isDisabled={!dirty} clickAction={save} />
         </HStack>
       </HStack>
       {message && <Banner status={message.status} title={message.text} isDismissable onDismiss={() => setMessage(null)} collapsible={false} />}
-      <div className="split">
-        <VStack gap={2}>
-          <HStack gap={2} vAlign="end">
-            <div className="grow">
-              <TextInput
-                label="AI への指示"
-                placeholder="例: 右側に詳細パネルを出す案にして"
-                value={prompt}
-                onChange={setPrompt}
-                onEnter={() => prompt && !generating && generate()}
-              />
-            </div>
+      <Grid columns={{minWidth: 360, repeat: 'fit'}} gap={4} align="start">
+        <VStack gap={3}>
+          <InputGroup label="AI への指示">
+            <TextInput
+              label="指示"
+              isLabelHidden
+              placeholder="例: 右側に詳細パネルを出す案にして"
+              value={prompt}
+              onChange={setPrompt}
+              onEnter={() => prompt && !generating && generate()}
+            />
             <Button label="生成" isLoading={generating} isDisabled={!prompt} onClick={generate} />
-          </HStack>
-          <div className="code-editor">
-            <TextArea label="方案のコード（TSX）" value={code} onChange={setCode} rows={30} hasSpellCheck={false} />
-          </div>
+          </InputGroup>
+          <TextArea label="方案のコード（TSX）" value={code} onChange={setCode} rows={30} hasSpellCheck={false} containerClassName="code-input" />
         </VStack>
         <Preview code={shown} width={width} mode={mode} title={`${current} のプレビュー`} />
-      </div>
+      </Grid>
+      <AlertDialog
+        isOpen={confirming}
+        onOpenChange={setConfirming}
+        title={`${current} を削除しますか？`}
+        description="方案のコードを削除します。保存済みのファイルも消え、元に戻せません。"
+        actionLabel="削除"
+        cancelLabel="キャンセル"
+        onAction={remove}
+      />
     </VStack>
   );
 }

@@ -3,6 +3,7 @@
 import {useState} from 'react';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
+import {Grid} from '@astryxdesign/core/Grid';
 import {Heading} from '@astryxdesign/core/Heading';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Markdown} from '@astryxdesign/core/Markdown';
@@ -50,15 +51,20 @@ export function CardEditor({detail, reviews, reload}: {detail: CardDetail; revie
         </HStack>
       </HStack>
       {message && <Banner status={message.status} title={message.text} isDismissable onDismiss={() => setMessage(null)} collapsible={false} />}
-      <div className="split">
-        <div className="code-editor">
-          <TextArea label="決定カード（YAML フロントマター + Markdown）" value={text} onChange={setText} rows={36} hasSpellCheck={false} />
-        </div>
+      <Grid columns={{minWidth: 360, repeat: 'fit'}} gap={6} align="start">
+        <TextArea
+          label="決定カード（YAML フロントマター + Markdown）"
+          value={text}
+          onChange={setText}
+          rows={36}
+          hasSpellCheck={false}
+          containerClassName="code-input"
+        />
         <VStack gap={2}>
           <Heading level={2}>表示</Heading>
           <Markdown>{text.replace(/^---[\s\S]*?\n---\n/, '')}</Markdown>
         </VStack>
-      </div>
+      </Grid>
     </VStack>
   );
 }

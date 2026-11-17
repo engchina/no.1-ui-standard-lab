@@ -5,7 +5,9 @@ import {Layout, LayoutContent, LayoutHeader} from '@astryxdesign/core/Layout';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Text} from '@astryxdesign/core/Text';
 import {Banner} from '@astryxdesign/core/Banner';
+import {AlertDialog} from '@astryxdesign/core/AlertDialog';
 import {Button} from '@astryxdesign/core/Button';
+import {InputGroup} from '@astryxdesign/core/InputGroup';
 import {HStack} from '@astryxdesign/core/HStack';
 import {VStack} from '@astryxdesign/core/VStack';
 import {TextInput} from '@astryxdesign/core/TextInput';
@@ -24,6 +26,7 @@ const SOURCE_LABEL = {ui: 'この画面で保存したキー', env: '環境変�
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [key, setKey] = useState('');
+  const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<{status: 'success' | 'error' | 'warning'; text: string} | null>(null);
 
   useEffect(() => {
@@ -68,12 +71,12 @@ export default function SettingsPage() {
                 </Text>
               </VStack>
             )}
-            <HStack gap={2} vAlign="end" wrap="wrap">
-              <div className="grow">
+            <VStack gap={2} maxWidth={640}>
+              <InputGroup label="Claude API キー" description="console.anthropic.com の API Keys で発行したキー（sk-ant- で始まる）">
                 <TextInput
                   type="password"
-                  label="Claude API キー"
-                  description="console.anthropic.com の API Keys で発行したキー（sk-ant- で始まる）"
+                  label="キー"
+                  isLabelHidden
                   placeholder="sk-ant-..."
                   value={key}
                   onChange={setKey}
@@ -81,10 +84,26 @@ export default function SettingsPage() {
                   autoComplete="off"
                   hasSpellCheck={false}
                 />
-              </div>
-              <Button label="保存して接続を確認" variant="primary" isDisabled={!key.trim()} clickAction={() => save(key)} />
-              {settings?.source === 'ui' && <Button label="保存したキーを削除" variant="ghost" clickAction={() => save('')} />}
-            </HStack>
+                <Button label="保存して接続を確認" variant="primary" isDisabled={!key.trim()} clickAction={() => save(key)} />
+              </InputGroup>
+              {settings?.source === 'ui' && (
+                <HStack>
+                  <Button label="保存したキーを削除" variant="ghost" clickAction={() => setConfirming(true)} />
+                </HStack>
+              )}
+            </VStack>
+            <AlertDialog
+              isOpen={confirming}
+              onOpenChange={setConfirming}
+              title="保存したキーを削除しますか？"
+              description="この PC に保存した API キーを消します。環境変数 ANTHROPIC_API_KEY があればそちらを使います。"
+              actionLabel="削除"
+              cancelLabel="キャンセル"
+              onAction={() => {
+                setConfirming(false);
+                return save('');
+              }}
+            />
           </VStack>
         </LayoutContent>
       }

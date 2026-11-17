@@ -1,34 +1,22 @@
 @import '@astryxdesign/core/reset.css';
 @import '@astryxdesign/core/astryx.css';
-@import '@astryxdesign/theme-neutral/theme.css';
+@import '@astryxdesign/theme-chocolate/fonts.css';
+@import '@astryxdesign/theme-chocolate/theme.css';
 
 body {
   font-family: var(--font-family-body);
 }
 
-/* コード編集欄だけ等幅にする（Astryx の TextArea は className を受けないので外側から当てる） */
-.code-editor textarea {
-  font-family: var(--font-family-code, monospace);
-  font-size: var(--font-size-sm, 13px);
+/* コード編集欄だけ等幅（TextArea の containerClassName + Astryx の部品クラスで当てる。Astryx にコード入力用のコンポーネントがないため） */
+.code-input .astryx-text-area-control {
+  font-family: var(--font-family-code);
   white-space: pre;
   tab-size: 2;
 }
 
-/* 編集欄とプレビューの 2 列。狭い幅では縦に積む */
-.split {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
-  gap: var(--spacing-4, 16px);
-  align-items: start;
-}
-
-.grow {
-  flex: 1;
-  min-width: 0;
-}
-
+/* 方案プレビューの iframe（指定幅で描いて縮小する） */
 .preview-frame {
   border: 0;
   transform-origin: 0 0;
-  background: var(--color-background-surface, Canvas);
+  background: var(--color-background-surface);
 }

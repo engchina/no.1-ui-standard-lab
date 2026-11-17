@@ -5,6 +5,7 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
+import {Grid} from '@astryxdesign/core/Grid';
 import {Heading} from '@astryxdesign/core/Heading';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Link} from '@astryxdesign/core/Link';
@@ -49,11 +50,11 @@ export function Compare(props: {
 
   return (
     <VStack gap={4}>
-      <HStack hAlign="between" vAlign="center">
+      <HStack hAlign="between" vAlign="center" wrap="wrap" gap={2}>
         <Text type="supporting">機械チェック → AI 講評の順に実行します。結果は判断材料で、決めるのは自分です。</Text>
         <Button label="すべてレビュー" variant="primary" clickAction={async () => void (await Promise.all(names.map(start)))} />
       </HStack>
-      <div className="split">
+      <Grid columns={{minWidth: 420, repeat: 'fit'}} gap={6} align="start">
         {names.map((name) => (
           <VStack key={name} gap={3}>
             <HStack hAlign="between" vAlign="center">
@@ -64,7 +65,7 @@ export function Compare(props: {
             {reviews[name] && <ReviewView review={reviews[name]} />}
           </VStack>
         ))}
-      </div>
+      </Grid>
     </VStack>
   );
 }
@@ -82,7 +83,7 @@ function ReviewView({review: {key, result}}: {review: Reviews[string]}) {
           <Heading level={3}>機械チェック（{result.checks!.length - failed.length} / {result.checks!.length} 合格）</Heading>
           {result.checks!.map((c) => (
             <VStack key={c.name} gap={1}>
-              <HStack gap={2} vAlign="center">
+              <HStack gap={2} vAlign="center" wrap="wrap">
                 <Badge variant={c.ok ? 'success' : 'error'} label={c.ok ? '合格' : '要確認'} />
                 <Text weight="semibold">{c.name}</Text>
                 <Text type="supporting">{c.detail}</Text>
@@ -94,7 +95,7 @@ function ReviewView({review: {key, result}}: {review: Reviews[string]}) {
               ))}
             </VStack>
           ))}
-          <HStack gap={2}>
+          <HStack gap={3} wrap="wrap">
             {result.widths?.map((w) => (
               <Link key={w} href={`/api/reviews/${key}/${w}.png`} target="_blank">
                 {`${w}px のスクリーンショット`}

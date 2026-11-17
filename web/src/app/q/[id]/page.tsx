@@ -6,6 +6,9 @@ import {Layout, LayoutContent, LayoutHeader, LayoutPanel} from '@astryxdesign/co
 import {Heading} from '@astryxdesign/core/Heading';
 import {Text} from '@astryxdesign/core/Text';
 import {Badge} from '@astryxdesign/core/Badge';
+import {Button} from '@astryxdesign/core/Button';
+import {Drawer} from '@astryxdesign/core/Drawer';
+import {useMediaQuery} from '@astryxdesign/core/hooks';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Selector} from '@astryxdesign/core/Selector';
 import {Markdown} from '@astryxdesign/core/Markdown';
@@ -31,6 +34,8 @@ export default function Workbench() {
   const [mode, setMode] = useState<Mode>('light');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [reviews, setReviews] = useState<Reviews>({});
+  const [docsOpen, setDocsOpen] = useState(false);
+  const wide = useMediaQuery('(min-width: 1024px)');
 
   const reload = useCallback(async () => {
     try {
@@ -66,7 +71,17 @@ export default function Workbench() {
   }, [running.map(([n, r]) => n + r.key).join()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return <Banner status="error" title="問題を読み込めません" description={error} collapsible={false} />;
-  if (!detail) return <Skeleton height={320} />;
+  if (!detail) {
+    // 読み込み中も画面の骨組み（バッジ・題名・タブ・本文）を保つ
+    return (
+      <VStack gap={3}>
+        <Skeleton width={160} height={24} />
+        <Skeleton width="60%" height={36} />
+        <Skeleton width={280} height={32} />
+        <Skeleton height={480} />
+      </VStack>
+    );
+  }
 
   const widthSwitch = (
     <HStack gap={2}>
@@ -99,15 +114,26 @@ export default function Workbench() {
                 <Tab value="compare" label="方案比較" />
                 <Tab value="card" label="決定カード" />
               </TabList>
-              {view !== 'card' && widthSwitch}
+              <HStack gap={2} wrap="wrap">
+                {view !== 'card' && widthSwitch}
+                {!wide && <Button label="背景と教材" size="sm" onClick={() => setDocsOpen(true)} />}
+              </HStack>
             </HStack>
           </VStack>
+          {!wide && (
+            <Drawer isOpen={docsOpen} onOpenChange={setDocsOpen} side="start" width={360} label="背景と Astryx の教材">
+              <DocsPanel detail={detail} />
+            </Drawer>
+          )}
         </LayoutHeader>
       }
       start={
-        <LayoutPanel width={360} hasDivider label="問題と Astryx ドキュメント">
-          <DocsPanel detail={detail} />
-        </LayoutPanel>
+        // 狭い幅では横に並べると本文が押しつぶされるので、パネルはドロワーに移す
+        wide && (
+          <LayoutPanel width={360} hasDivider label="背景と Astryx の教材">
+            <DocsPanel detail={detail} />
+          </LayoutPanel>
+        )
       }
       content={
         <LayoutContent label={view === 'play' ? '演習台' : view === 'compare' ? '方案比較' : '決定カード'}>
@@ -156,12 +182,12 @@ function DocsPanel({detail}: {detail: CardDetail}) {
   return (
     <VStack gap={4}>
       <VStack gap={1}>
-        <Text type="label">背景</Text>
+        <Heading level={2}>背景</Heading>
         <Text>{detail.origin}</Text>
       </VStack>
       {detail.decision && (
         <VStack gap={1}>
-          <Text type="label">現在の決定</Text>
+          <Heading level={2}>現在の決定</Heading>
           <Text>{detail.decision}</Text>
         </VStack>
       )}
