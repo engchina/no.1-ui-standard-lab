@@ -32,8 +32,16 @@
   const truncated = texts
     .filter((el) => el.scrollWidth > el.clientWidth + 1 && /(hidden|clip)/.test(getComputedStyle(el).overflowX))
     .map(sel);
+  // 領域の中で横スクロールが出ている（コードブロックは除く）
+  const hScroll = all
+    .filter((el) => el.tagName !== 'PRE' && /(auto|scroll)/.test(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 1)
+    .map(sel);
+  // 押しつぶされた領域: 幅 80px 未満のスクロール領域に文章が入っている（例: 幅なしの LayoutPanel に本文が押し出される）
+  const squeezed = all
+    .filter((el) => el.getBoundingClientRect().width < 80 && /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.innerText.trim().length > 40)
+    .map(sel);
 
-  // 余白: Astryx の刻み（0.5 = 2px, 1 = 4px, ...）。ponytail: 2/6px と 4 の倍数だけ許可、必要ならトークン表から生成
+  // 余白:Astryx の刻み（0.5 = 2px, 1 = 4px, ...）。ponytail: 2/6px と 4 の倍数だけ許可、必要ならトークン表から生成
   const okSpace = (v) => v === 0 || v === 2 || v === 6 || v % 4 === 0;
   const spacing = new Map();
   const props = ['marginTop', 'marginRight', 'marginBottom', 'marginLeft', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'rowGap', 'columnGap'];
@@ -103,6 +111,8 @@
     scrollers,
     hOverflow,
     truncated: truncated.slice(0, 20),
+    hScroll: hScroll.slice(0, 10),
+    squeezed: squeezed.slice(0, 10),
     spacing: [...spacing].slice(0, 30).map(([k, v]) => `${k} — ${v}`),
     fontSizes,
     smallTargets: smallTargets.slice(0, 30),

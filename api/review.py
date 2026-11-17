@@ -53,6 +53,8 @@ def judge(code: str, metrics: dict, axe: dict) -> list[dict]:
     colors = sorted(set(HARD_COLOR.findall(code)))
     resp = [f"{w}px: 横方向にはみ出し" for w in WIDTHS if metrics[w]["hOverflow"]]
     resp += [f"{w}px: 文字の切れ {s}" for w in WIDTHS for s in metrics[w]["truncated"]]
+    resp += [f"{w}px: 領域内の横スクロール {s}" for w in WIDTHS for s in metrics[w]["hScroll"]]
+    resp += [f"{w}px: 押しつぶされた領域 {s}" for w in WIDTHS for s in metrics[w]["squeezed"]]
     scroll = {w: metrics[w]["scrollers"] for w in WIDTHS}
     return [
         _item("文字コントラスト", not contrast, "WCAG 2.2 AA（本文 4.5:1 以上）", contrast),
