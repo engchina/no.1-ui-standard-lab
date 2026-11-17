@@ -9,6 +9,7 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Button} from '@astryxdesign/core/Button';
 import {Drawer} from '@astryxdesign/core/Drawer';
 import {useMediaQuery} from '@astryxdesign/core/hooks';
+import {ResizeHandle, useResizable} from '@astryxdesign/core/Resizable';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Selector} from '@astryxdesign/core/Selector';
 import {Markdown} from '@astryxdesign/core/Markdown';
@@ -36,6 +37,8 @@ export default function Workbench() {
   const [reviews, setReviews] = useState<Reviews>({});
   const [docsOpen, setDocsOpen] = useState(false);
   const wide = useMediaQuery('(min-width: 1024px)');
+  // 日本語の長文が 1 行 30 字前後で読める幅を既定に。最小は読める下限、畳むこともできる
+  const docsPanel = useResizable({defaultSize: 480, minSize: 320, maxSize: 720, collapsible: true, autoSaveId: 'lab-docs-panel'});
 
   const reload = useCallback(async () => {
     try {
@@ -121,7 +124,7 @@ export default function Workbench() {
             </HStack>
           </VStack>
           {!wide && (
-            <Drawer isOpen={docsOpen} onOpenChange={setDocsOpen} side="start" width={360} label="背景と Astryx の教材">
+            <Drawer isOpen={docsOpen} onOpenChange={setDocsOpen} side="start" width={480} label="背景と Astryx の教材">
               <DocsPanel detail={detail} />
             </Drawer>
           )}
@@ -129,10 +132,14 @@ export default function Workbench() {
       }
       start={
         // 狭い幅では横に並べると本文が押しつぶされるので、パネルはドロワーに移す
+        // 教材は長文なので幅をドラッグで変えられ、幅は保存される。ハンドルのダブルクリック / Enter で畳める
         wide && (
-          <LayoutPanel width={360} hasDivider label="背景と Astryx の教材">
-            <DocsPanel detail={detail} />
-          </LayoutPanel>
+          <>
+            <LayoutPanel resizable={docsPanel} label="背景と Astryx の教材">
+              <DocsPanel detail={detail} />
+            </LayoutPanel>
+            <ResizeHandle resizable={docsPanel} hasDivider label="教材パネルの幅を変える" />
+          </>
         )
       }
       content={
@@ -206,7 +213,7 @@ function DocsPanel({detail}: {detail: CardDetail}) {
           collapsible={false}
         />
       )}
-      {doc ? <Markdown density="compact">{doc}</Markdown> : <Skeleton height={240} />}
+      {doc ? <Markdown>{doc}</Markdown> : <Skeleton height={240} />}
     </VStack>
   );
 }
