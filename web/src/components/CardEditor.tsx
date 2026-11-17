@@ -10,29 +10,33 @@ import {Markdown} from '@astryxdesign/core/Markdown';
 import {Text} from '@astryxdesign/core/Text';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {VStack} from '@astryxdesign/core/VStack';
-import {api, type CardDetail, type Reviews} from '@/lib/api';
+import {api, streamText, type CardDetail, type Reviews} from '@/lib/api';
 
 export function CardEditor({detail, reviews, reload}: {detail: CardDetail; reviews: Reviews; reload: () => Promise<unknown>}) {
   const [text, setText] = useState(detail.raw);
+  const [drafting, setDrafting] = useState(false);
   const [message, setMessage] = useState<{status: 'success' | 'error' | 'info'; text: string} | null>(null);
   const reviewed = Object.fromEntries(Object.entries(reviews).filter(([, r]) => r.result.status === 'done').map(([n, r]) => [n, r.key]));
 
   const makeDraft = async () => {
     setMessage(null);
+    setDrafting(true);
     try {
-      const {text} = await api<{text: string}>(`/questions/${detail.id}/draft`, {method: 'POST', body: JSON.stringify({reviews: reviewed})});
-      setText(text);
+      // 草稿は長いので少しずつ届く。書いている途中もそのまま欄に出す
+      setText(await streamText(`/questions/${detail.id}/draft`, {reviews: reviewed}, setText));
       setMessage({status: 'info', text: '草稿を入れました。内容を確かめて、決めたら status を decided にして保存します。'});
     } catch (e) {
-      setMessage({status: 'error', text: (e as Error).message});
+      setMessage({status: 'error', text: `草稿を作れません（「設定」の API キーとネットワークを確認）: ${(e as Error).message}`});
+    } finally {
+      setDrafting(false);
     }
   };
 
-  const save = async (commit: boolean) => {
+  const save = async () => {
     try {
-      const r = await api<{commit?: string}>(`/questions/${detail.id}`, {method: 'PUT', body: JSON.stringify({text, commit})});
+      await api(`/questions/${detail.id}`, {method: 'PUT', body: JSON.stringify({text})});
       await reload();
-      setMessage({status: 'success', text: commit ? `保存して Git にコミットしました（${r.commit}）` : '保存しました'});
+      setMessage({status: 'success', text: '保存しました'});
     } catch (e) {
       setMessage({status: 'error', text: `保存できません: ${(e as Error).message}`});
     }
@@ -45,9 +49,8 @@ export function CardEditor({detail, reviews, reload}: {detail: CardDetail; revie
           {`レビュー済みの方案 ${Object.keys(reviewed).length} 件をもとに AI が草稿を書きます。決定は自分で行います。`}
         </Text>
         <HStack gap={2}>
-          <Button label="AI で草稿を作る" clickAction={makeDraft} />
-          <Button label="保存" isDisabled={text === detail.raw} clickAction={() => save(false)} />
-          <Button label="保存して Git にコミット" variant="primary" clickAction={() => save(true)} />
+          <Button label="AI で草稿を作る" isLoading={drafting} onClick={makeDraft} />
+          <Button label="保存" variant="primary" isDisabled={drafting || text === detail.raw} clickAction={save} />
         </HStack>
       </HStack>
       {message && <Banner status={message.status} title={message.text} isDismissable onDismiss={() => setMessage(null)} collapsible={false} />}
@@ -56,6 +59,7 @@ export function CardEditor({detail, reviews, reload}: {detail: CardDetail; revie
           label="決定カード（YAML フロントマター + Markdown）"
           value={text}
           onChange={setText}
+          isReadOnly={drafting}
           rows={36}
           hasSpellCheck={false}
           containerClassName="code-input"

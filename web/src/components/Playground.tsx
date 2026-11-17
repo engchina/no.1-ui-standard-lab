@@ -12,7 +12,7 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {Tab, TabList} from '@astryxdesign/core/TabList';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {TextInput} from '@astryxdesign/core/TextInput';
-import {api, type CardDetail} from '@/lib/api';
+import {api, streamText, type CardDetail} from '@/lib/api';
 import {STARTER, type Mode} from '@/lib/preview';
 import {Preview} from './Preview';
 
@@ -27,7 +27,6 @@ function useDebounced<T>(value: T, ms: number) {
   return v;
 }
 
-const stripFence = (s: string) => (s.match(/```[a-zA-Z]*\n([\s\S]*?)```/)?.[1] ?? s).trim() + '\n';
 
 export function Playground(props: {
   detail: CardDetail;
@@ -84,24 +83,7 @@ export function Playground(props: {
     setGenerating(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/questions/${detail.id}/generate`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({prompt, code}),
-      });
-      if (!res.ok || !res.body) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.detail ?? `${res.status} ${res.statusText}`);
-      }
-      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-      let acc = '';
-      for (;;) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        acc += value;
-        setCode(acc);
-      }
-      setCode(stripFence(acc));
+      setCode(await streamText(`/questions/${detail.id}/generate`, {prompt, code}, setCode));
     } catch (e) {
       setMessage({status: 'error', text: `生成できません（「設定」の API キーとネットワークを確認）: ${(e as Error).message}`});
     } finally {

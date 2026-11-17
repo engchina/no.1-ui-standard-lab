@@ -4,7 +4,6 @@ import hashlib
 import itertools
 import json
 import re
-import subprocess
 import threading
 from pathlib import Path
 
@@ -138,8 +137,11 @@ class GenerateIn(BaseModel):
 
 @app.post("/api/questions/{qid}/generate")
 def generate(qid: str, body: GenerateIn):
-    gen = llm.generate(load_card(qid), body.prompt, body.code)
-    # 最初の 1 片を先に取り、認証やネットワークのエラーをストリーム開始前に HTTP エラーとして返す
+    return stream(llm.generate(load_card(qid), body.prompt, body.code))
+
+
+def stream(gen):
+    """Claude の出力を少しずつ返す。最初の 1 片を先に取り、認証やネットワークのエラーはストリーム開始前に HTTP エラーで返す。"""
     try:
         first = next(gen, "")
     except Exception as e:
@@ -212,10 +214,7 @@ def draft(qid: str, body: DraftIn):
         if f.is_file():
             r = json.loads(f.read_text(encoding="utf-8"))
             results[name] = {"checks": [c for c in r["checks"] if not c["ok"]], "ai": r.get("ai")}
-    try:
-        return {"text": llm.draft(raw, load_card(qid), load_options(qid), results)}
-    except Exception as e:
-        raise HTTPException(502, f"草稿の生成に失敗しました: {type(e).__name__}: {e}")
+    return stream(llm.draft(raw, load_card(qid), load_options(qid), results))
 
 
 def settings_view(error: str = "") -> dict:
@@ -247,7 +246,6 @@ def save_settings(body: SettingsIn):
 
 class CardIn(BaseModel):
     text: str
-    commit: bool = False
 
 
 @app.put("/api/questions/{qid}")
@@ -262,14 +260,4 @@ def save_card(qid: str, body: CardIn):
     if meta.get("status") not in ("todo", "researching", "decided"):
         raise HTTPException(400, "status は todo / researching / decided のいずれか")
     path.write_text(body.text, encoding="utf-8")
-    if not body.commit:
-        return {"ok": True}
-    paths = [str(path.relative_to(ROOT))]
-    if (OPTIONS / qid).is_dir():
-        paths.append(str((OPTIONS / qid).relative_to(ROOT)))
-    git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
-    git("add", "--", *paths)
-    r = git("commit", "-m", f"card({qid}): {meta.get('question', '')[:50]}", "--", *paths)
-    if r.returncode != 0:
-        raise HTTPException(409, (r.stdout + r.stderr).strip() or "コミットできませんでした")
-    return {"ok": True, "commit": git("rev-parse", "--short", "HEAD").stdout.strip()}
+    return {"ok": True}  # Git へのコミットは画面からはしない（自分で git commit する）

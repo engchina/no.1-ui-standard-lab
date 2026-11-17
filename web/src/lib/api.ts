@@ -58,5 +58,23 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (type.includes('json') ? res.json() : res.text()) as Promise<T>;
 }
 
+/** Claude の出力を少しずつ受け取る（生成・草稿）。途中経過を onText に渡し、最後にコードフェンスを外した全文を返す。 */
+export async function streamText(path: string, body: unknown, onText: (text: string) => void): Promise<string> {
+  const res = await fetch(`/api${path}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if (!res.ok || !res.body) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail ?? `${res.status} ${res.statusText}`);
+  }
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let acc = '';
+  for (;;) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    acc += value;
+    onText(acc);
+  }
+  return (acc.match(/```[a-zA-Z]*\n([\s\S]*?)```/)?.[1] ?? acc).trim() + '\n';
+}
+
 /** 方案名 -> レビュー（キーと最新の結果） */
 export type Reviews = Record<string, {key: string; result: Review}>;

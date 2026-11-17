@@ -12,7 +12,7 @@ Meta の [Astryx](https://github.com/meta/astryx) を土台に、次の新規プ
 | `standard/astryx-docs/` | Astryx の設計ドキュメントとコンポーネント文書の固定コピー（`scripts/vendor-astryx.sh` で更新） |
 | `standard/astryx-docs-ja/` | 上の文書の日本語訳。左パネルで初めて開いたときに Claude で訳して保存（原文が変わると訳し直す）。コミットして共有する |
 | `web/` | 画面（Next.js + React 19 + Astryx）。`/api` は FastAPI へ転送 |
-| `api/` | FastAPI。カードの読み書き・Git コミット、Claude での生成 / 講評 / 草稿、Playwright + axe-core の機械チェック |
+| `api/` | FastAPI。カードの読み書き、Claude での生成 / 講評 / 草稿、Playwright + axe-core の機械チェック |
 
 方案のプレビューはブラウザ内で TSX をコンパイル（sucrase）し、`sandbox="allow-scripts"` の iframe（不透明オリジン + CSP）で esm.sh から Astryx を読み込んで描画します。レビュー Worker も同じ HTML を Playwright で 375 / 768 / 1280 幅に描画してチェックします。
 
@@ -57,7 +57,7 @@ http://localhost:3710 を開きます。API キーがなくても、問題一覧
 1. 問題一覧から問題を開く。左に背景と Astryx の教材（日本語訳）。
 2. 演習台で方案を 2〜3 案作る（コードを書くか、AI に指示して生成）。幅 375 / 768 / 1280、ライト / ダークで確かめて保存。
 3. 方案比較で「すべてレビュー」。機械チェック 10 項目と AI 講評が並ぶ。同じ方案は 1 回だけ評価され、結果は `.cache/reviews/` に残る。
-4. 決定カードで「AI で草稿を作る」→ 自分で直して `status: decided` → 「保存して Git にコミット」。
+4. 決定カードで「AI で草稿を作る」→ 自分で直して `status: decided` → 「保存」。Git へのコミットは自分で行う。
 
 新規プロジェクトで標準にない問題に出会ったら、`standard/cards/` にカードを足してこの流れに戻します。
 
